@@ -26,7 +26,7 @@ go build -o lube cmd/main.go
 `./lube deploy <dirpath>
 
 
-go ```
+```go
 package main
 import(
   "github.com/ertia-io/lube"
