@@ -1,9 +1,8 @@
-module github.com/fabled-se/lube
+module github.com/ertia-io/lube
 
 go 1.17
 
 require (
-	github.com/SuperPaintman/nice v0.0.0-20211001214957-a29cd3367b17
 	github.com/davecgh/go-spew v1.1.1
 	github.com/rs/zerolog v1.26.1
 	github.com/teris-io/shortid v0.0.0-20201117134242-e59966efd125
