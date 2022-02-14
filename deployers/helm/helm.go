@@ -66,7 +66,7 @@ func (d *HelmDeployer) Deploy(ctx context.Context,namespace string, r io.Reader)
 
 	installer := action.NewInstall(actionConfig)
 	installer.Namespace = namespace
-	installer.ReleaseName = "lube-"+strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(uid),"_","."), ".","")
+	installer.ReleaseName = "ertia-"+strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(uid),"_","."), ".","")
 	//installer.ClientOnly=true
 	installer.IncludeCRDs=true
 	//installer.Wait = true

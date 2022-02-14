@@ -33,6 +33,12 @@ func main() {
 					Value:   "default",
 					Usage:   "path to deployment namespace",
 				},
+				&cli.StringFlag{
+					Name:    "token",
+					Aliases: []string{"t"},
+					Usage:   "git token to download deployments",
+					EnvVars: []string{"LUBE_GIT_TOKEN"},
+				},
 			},
 			Action: func(c *cli.Context) error {
 
@@ -53,7 +59,7 @@ func main() {
 					return nil
 				}
 
-				err = ld.DeployArchiveUrl(context.Background(),u.String())
+				err = ld.DeployArchiveUrl(context.Background(),u.String(), c.String("token"))
 				if(err!=nil){
 					return errors.New("Could not deploy url: "+ deployment)
 				}
