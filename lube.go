@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Deployer interface {
@@ -40,8 +41,8 @@ func (d *LubeDeployer) WithLoggingContext(ctx context.Context) context.Context {
 }
 
 //Deploy with URL to tar.gz archive (like github repo)
-func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, url string) error {
-	ertiaDir,archiveFile, err:= downloadArchive(url)
+func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, url string, token string) error {
+	ertiaDir,archiveFile, err:= downloadArchive(url,token)
 	if(err!=nil){
 		return err
 	}
@@ -120,12 +121,26 @@ func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context,dir string) 
 	return nil
 }
 
-func downloadArchive(url string) (string,string, error) {
-	// Get the data
-	resp, err := http.Get(url)
+func downloadArchive(url string, token string) (string,string, error) {
+
+	httpClient := http.DefaultClient
+	httpClient.Timeout = time.Second *60
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "","",err
 	}
+
+	if(token!=""){
+		req.Header.Add("Authorization","token "+token)
+	}
+
+	resp, err := httpClient.Do(req)
+
+	if err != nil {
+		return "","",err
+	}
+
 	defer resp.Body.Close()
 
 	dir, err := ioutil.TempDir("", "ertia.deployments")//TODO: Add checksum? would work as cache...?
