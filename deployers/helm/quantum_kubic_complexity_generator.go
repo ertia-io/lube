@@ -14,7 +14,6 @@ import (
  *  Let's honour them by giving a proper name to their effort.
  */
 
-
 type SimpleRESTClientGetter struct {
 	Namespace  string
 	KubeConfig string

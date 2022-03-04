@@ -17,45 +17,44 @@ import (
 )
 
 type Deployer interface {
-	Deploy(context.Context,string,io.Reader) (error)
-	DeployPath(context.Context,string,string) (error)
+	Deploy(context.Context, string, io.Reader) error
+	DeployPath(context.Context, string, string) error
 	Name() string
 }
 
 type LubeDeployer struct {
 	KubeConfig string
-	Namespace string
+	Namespace  string
 }
 
 func NewLubeDeployer(kubeCfgPath string, namespace string) *LubeDeployer {
 	return &LubeDeployer{
 		KubeConfig: kubeCfgPath,
-		Namespace:namespace,
-
+		Namespace:  namespace,
 	}
 }
 
 func (d *LubeDeployer) WithLoggingContext(ctx context.Context) context.Context {
-	logger := log.With().Str("module","lube").Logger()
+	logger := log.With().Str("module", "lube").Logger()
 	return logger.WithContext(ctx)
 }
 
 //Deploy with URL to tar.gz archive (like github repo)
 func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, url string, token string) error {
-	ertiaDir,archiveFile, err:= downloadArchive(url,token)
-	if(err!=nil){
+	ertiaDir, archiveFile, err := downloadArchive(url, token)
+	if err != nil {
 		return err
 	}
 
 	log.Ctx(ctx).Info().Msgf("\nDeploying Archive: %s\n", url)
 
 	err = decompressArchive(ertiaDir, archiveFile)
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
 	err = os.Remove(archiveFile)
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
@@ -65,24 +64,24 @@ func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, url string, token s
 }
 
 //Deploy with path to directory, recursive
-func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context,dir string) error{
+func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context, dir string) error {
 
 	fi, err := ioutil.ReadDir(filepath.Join(dir))
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
 	log.Ctx(ctx).Info().Msgf("\nFound %d deployments\n", len(fi))
 
-	if(len(fi) > 0){
+	if len(fi) > 0 {
 
 		//Create namepsace..
 		kubeDeployer, err := yaml.NewYamlDeployer(d.KubeConfig)
-		if(err!=nil){
+		if err != nil {
 			return err
 		}
 		err = kubeDeployer.CreateNamespace(context.Background(), d.Namespace)
-		if(err!=nil){
+		if err != nil {
 			err = nil //Already existed, ignore..
 		}
 	}
@@ -90,29 +89,28 @@ func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context,dir string) 
 	for _, collection := range fi {
 		var deployer Deployer
 
-		if(strings.Contains(strings.ToLower(collection.Name()),"_helm")) {
+		if strings.Contains(strings.ToLower(collection.Name()), "_helm") {
 			deployer, err = helm.NewHelmDeployer(d.KubeConfig)
-		} else if (strings.Contains(strings.ToLower(collection.Name()),"yaml")){
+		} else if strings.Contains(strings.ToLower(collection.Name()), "yaml") {
 			deployer, err = yaml.NewYamlDeployer(d.KubeConfig)
-		} else if(collection.IsDir()){
+		} else if collection.IsDir() {
 			log.Ctx(ctx).Info().Msgf("\n Checking %s for deployments \n", filepath.Join(dir, collection.Name()))
-			err = d.DeployDirectoryRecursive(ctx, filepath.Join(dir,collection.Name()))
-			if(err!=nil){
+			err = d.DeployDirectoryRecursive(ctx, filepath.Join(dir, collection.Name()))
+			if err != nil {
 				return err
 			}
 			continue
-		} else{
+		} else {
 			continue
 		}
 
-		if(err!=nil){
+		if err != nil {
 			return err
 		}
 
-
-		log.Ctx(ctx).Info().Msgf("\nDeploying %s with Deployer: %s\n", collection.Name(),deployer.Name())
-		err = deployer.DeployPath(context.Background(),d.Namespace, filepath.Join(dir,collection.Name()))
-		if(err!=nil){
+		log.Ctx(ctx).Info().Msgf("\nDeploying %s with Deployer: %s\n", collection.Name(), deployer.Name())
+		err = deployer.DeployPath(context.Background(), d.Namespace, filepath.Join(dir, collection.Name()))
+		if err != nil {
 			log.Ctx(ctx).Err(err).Msgf("\nCould not deploy %s with Deployer %s\n", collection.Name(), deployer.Name())
 			return err
 		}
@@ -121,48 +119,46 @@ func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context,dir string) 
 	return nil
 }
 
-func downloadArchive(url string, token string) (string,string, error) {
+func downloadArchive(url string, token string) (string, string, error) {
 
 	httpClient := http.DefaultClient
-	httpClient.Timeout = time.Second *60
+	httpClient.Timeout = time.Second * 60
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return "","",err
+		return "", "", err
 	}
 
-	if(token!=""){
-		req.Header.Add("Authorization","token "+token)
+	if token != "" {
+		req.Header.Add("Authorization", "token "+token)
 	}
 
 	resp, err := httpClient.Do(req)
 
 	if err != nil {
-		return "","",err
+		return "", "", err
 	}
 
 	defer resp.Body.Close()
 
-	dir, err := ioutil.TempDir("", "ertia.deployments")//TODO: Add checksum? would work as cache...?
-
+	dir, err := ioutil.TempDir("", "ertia.deployments") //TODO: Add checksum? would work as cache...?
 
 	if err != nil {
-		return "","",err
+		return "", "", err
 	}
 
-	outFile, err :=os.Create(filepath.Join(dir,"deployments.tgz")	)
+	outFile, err := os.Create(filepath.Join(dir, "deployments.tgz"))
 	if err != nil {
-		return "","",err
+		return "", "", err
 	}
 
 	if _, err := io.Copy(outFile, resp.Body); err != nil {
-		return "","",err
+		return "", "", err
 	}
-	return dir, outFile.Name(),err
+	return dir, outFile.Name(), err
 }
 
-
-func decompressArchive(dir string,filePath string) (error) {
+func decompressArchive(dir string, filePath string) error {
 	r, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -200,7 +196,7 @@ func decompressArchive(dir string,filePath string) (error) {
 				return err
 			}
 
-			outFile, err :=os.Create(filepath.Join(dir, header.Name))
+			outFile, err := os.Create(filepath.Join(dir, header.Name))
 			if err != nil {
 				return err
 			}
@@ -215,5 +211,3 @@ func decompressArchive(dir string,filePath string) (error) {
 
 	return nil
 }
-
-

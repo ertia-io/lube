@@ -17,9 +17,9 @@ func main() {
 
 	app.Commands = []*cli.Command{
 		{
-			Name: "deploy",
-			Aliases:[]string{"d","dep","depl"},
-			Flags: []cli.Flag {
+			Name:    "deploy",
+			Aliases: []string{"d", "dep", "depl"},
+			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:    "kubeconfig",
 					Aliases: []string{"k"},
@@ -42,26 +42,26 @@ func main() {
 			},
 			Action: func(c *cli.Context) error {
 
-				ld := lube.NewLubeDeployer(c.String("kubeconfig"),c.String("namespace") )
+				ld := lube.NewLubeDeployer(c.String("kubeconfig"), c.String("namespace"))
 
 				deployment := c.Args().Get(0)
 
-				if(len(deployment)<1){
+				if len(deployment) < 1 {
 					return errors.New("No deployment specified")
 				}
 
 				u, err := url.Parse(deployment)
 				if err != nil || u.Scheme == "" || u.Host == "" {
 					err = ld.DeployDirectoryRecursive(context.Background(), deployment)
-					if(err!=nil){
-						return errors.New("Could not deploy directory: "+ deployment)
+					if err != nil {
+						return errors.New("Could not deploy directory: " + deployment)
 					}
 					return nil
 				}
 
-				err = ld.DeployArchiveUrl(context.Background(),u.String(), c.String("token"))
-				if(err!=nil){
-					return errors.New("Could not deploy url: "+ deployment)
+				err = ld.DeployArchiveUrl(context.Background(), u.String(), c.String("token"))
+				if err != nil {
+					return errors.New("Could not deploy url: " + deployment)
 				}
 
 				return nil
@@ -75,13 +75,13 @@ func main() {
 	}
 }
 
-func getKubeConfigPath() string{
-	if kubepath, ok := os.LookupEnv("KUBECONFIG"); ok{
+func getKubeConfigPath() string {
+	if kubepath, ok := os.LookupEnv("KUBECONFIG"); ok {
 		return kubepath
 	}
-	home, err:= os.UserHomeDir()
-	if(err!=nil){
+	home, err := os.UserHomeDir()
+	if err != nil {
 		return "~/.kube/config"
 	}
-	return filepath.Join(home,".kube","config")
+	return filepath.Join(home, ".kube", "config")
 }

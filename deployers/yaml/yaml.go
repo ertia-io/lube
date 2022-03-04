@@ -31,7 +31,7 @@ type YamlDeployer struct {
 	KubeClient *kubernetes.Clientset
 }
 
-func NewYamlDeployer(kubeCfgPath string) (*YamlDeployer, error){
+func NewYamlDeployer(kubeCfgPath string) (*YamlDeployer, error) {
 
 	restConfig, err := clientcmd.BuildConfigFromFlags(
 		"", kubeCfgPath,
@@ -52,23 +52,22 @@ func NewYamlDeployer(kubeCfgPath string) (*YamlDeployer, error){
 		KubeConfig: kubeCfgPath,
 		RestConfig: restConfig,
 		KubeClient: clientset,
-	},nil
+	}, nil
 
 }
 
-
-func (d *YamlDeployer) Name() (string) {
+func (d *YamlDeployer) Name() string {
 	return "YamlDeployer"
 }
 
-func (d *YamlDeployer) CreateNamespace(ctx context.Context, namespace string) error{
+func (d *YamlDeployer) CreateNamespace(ctx context.Context, namespace string) error {
 	nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 
-	_, err := d.KubeClient.CoreV1().Namespaces().Create(ctx,nsSpec,metav1.CreateOptions{})
+	_, err := d.KubeClient.CoreV1().Namespaces().Create(ctx, nsSpec, metav1.CreateOptions{})
 	return err
 }
 
-func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader ) error{
+func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader) error {
 
 	cfg := d.RestConfig
 
@@ -85,7 +84,6 @@ func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader
 		return err
 	}
 
-
 	if err != nil {
 		return err
 	}
@@ -94,16 +92,16 @@ func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader
 
 	parts, err := GetDeploymentParts(r)
 
-	for _, partialDeployment := range parts{
+	for _, partialDeployment := range parts {
 
-		if(len(partialDeployment)< 5){
+		if len(partialDeployment) < 5 {
 			continue
 		}
 
 		obj := &unstructured.Unstructured{}
 		_, gvk, err := GetDeployment(partialDeployment, obj)
 
-		if(gvk==nil){
+		if gvk == nil {
 			err = nil
 			continue //Probably comment block, ignore
 		}
@@ -112,7 +110,7 @@ func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader
 			return err
 		}
 
-		if(namespace!=""){
+		if namespace != "" {
 			obj.SetNamespace(namespace)
 		}
 
@@ -138,7 +136,6 @@ func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader
 			return err
 		}
 
-
 		// 7. Create or Update the object with SSA
 		//     types.ApplyPatchType indicates SSA.
 		//     FieldManager specifies the field owner ID.
@@ -151,8 +148,7 @@ func (d *YamlDeployer) Deploy(ctx context.Context, namespace string, r io.Reader
 	return err
 }
 
-
-func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path string ) error{
+func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path string) error {
 
 	r, err := os.Open(path)
 	if err != nil {
@@ -174,7 +170,6 @@ func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path st
 		return err
 	}
 
-
 	if err != nil {
 		return err
 	}
@@ -183,16 +178,16 @@ func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path st
 
 	parts, err := GetDeploymentParts(r)
 
-	for _, partialDeployment := range parts{
+	for _, partialDeployment := range parts {
 
-		if(len(partialDeployment)< 5){
+		if len(partialDeployment) < 5 {
 			continue
 		}
 
 		obj := &unstructured.Unstructured{}
 		_, gvk, err := GetDeployment(partialDeployment, obj)
 
-		if(gvk==nil){
+		if gvk == nil {
 			err = nil
 			continue //Probably comment block, ignore
 		}
@@ -201,7 +196,7 @@ func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path st
 			return err
 		}
 
-		if(namespace!=""){
+		if namespace != "" {
 			obj.SetNamespace(namespace)
 		}
 
@@ -227,7 +222,6 @@ func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path st
 			return err
 		}
 
-
 		// 7. Create or Update the object with SSA
 		//     types.ApplyPatchType indicates SSA.
 		//     FieldManager specifies the field owner ID.
@@ -240,21 +234,20 @@ func (d *YamlDeployer) DeployPath(ctx context.Context, namespace string, path st
 	return err
 }
 
-func GetDeployment(deployment string, into runtime.Object) (runtime.Object, *schema.GroupVersionKind,error) {
+func GetDeployment(deployment string, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 
 	return decode([]byte(deployment), nil, into)
 }
 
-func GetDeploymentParts(r io.Reader)([]string, error){
+func GetDeploymentParts(r io.Reader) ([]string, error) {
 
 	bytes, err := ioutil.ReadAll(r)
-	if(err!=nil){
+	if err != nil {
 		return nil, err
 	}
 
-	parts := strings.Split(string(bytes),"---")
+	parts := strings.Split(string(bytes), "---")
 
-	return parts,nil
+	return parts, nil
 }
-

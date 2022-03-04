@@ -18,40 +18,37 @@ import (
 )
 
 type HelmDeployer struct {
-
 	KubeConfig string
 	RestConfig *restclient.Config
 }
 
-func NewHelmDeployer(kubeCfgPath string) (*HelmDeployer, error){
+func NewHelmDeployer(kubeCfgPath string) (*HelmDeployer, error) {
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", kubeCfgPath)
 	if err != nil {
 		panic(err.Error())
 	}
 
-
-
 	return &HelmDeployer{
 		KubeConfig: kubeCfgPath,
 		RestConfig: config,
-	},nil
+	}, nil
 }
 
-func (d *HelmDeployer) Name() (string) {
+func (d *HelmDeployer) Name() string {
 	return "HelmDeployer"
 }
 
-func (d *HelmDeployer) Deploy(ctx context.Context,namespace string, r io.Reader) (error) {
+func (d *HelmDeployer) Deploy(ctx context.Context, namespace string, r io.Reader) error {
 
 	actionConfig := new(action.Configuration)
 
 	kubeCfg, err := ioutil.ReadFile(d.KubeConfig)
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
-	restClientGetter :=  NewRESTClientGetter(namespace, string(kubeCfg))
+	restClientGetter := NewRESTClientGetter(namespace, string(kubeCfg))
 
 	if err := actionConfig.Init(restClientGetter, namespace, os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
 		fmt.Sprintf(format, v)
@@ -60,15 +57,15 @@ func (d *HelmDeployer) Deploy(ctx context.Context,namespace string, r io.Reader)
 	}
 
 	uid, err := shortid.Generate()
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
 	installer := action.NewInstall(actionConfig)
 	installer.Namespace = namespace
-	installer.ReleaseName = "ertia-"+strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(uid),"_","."), ".","")
+	installer.ReleaseName = "ertia-" + strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(uid), "_", "."), ".", "")
 	//installer.ClientOnly=true
-	installer.IncludeCRDs=true
+	installer.IncludeCRDs = true
 	//installer.Wait = true
 	installer.Replace = true
 	installer.WaitForJobs = false
@@ -79,40 +76,38 @@ func (d *HelmDeployer) Deploy(ctx context.Context,namespace string, r io.Reader)
 
 	chart, err := loader.LoadArchive(r)
 
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 	err = chart.Validate()
 
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
-	release,err := installer.Run(chart, map[string]interface{}{})
+	release, err := installer.Run(chart, map[string]interface{}{})
 
-	if(false) {
+	if false {
 		spew.Dump(release)
 	}
 
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
 
-
-func (d *HelmDeployer) DeployPath(ctx context.Context,namespace string, path string) (error) {
-
+func (d *HelmDeployer) DeployPath(ctx context.Context, namespace string, path string) error {
 
 	actionConfig := new(action.Configuration)
 
 	kubeCfg, err := ioutil.ReadFile(d.KubeConfig)
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
-	restClientGetter :=  NewRESTClientGetter(namespace, string(kubeCfg))
+	restClientGetter := NewRESTClientGetter(namespace, string(kubeCfg))
 
 	if err := actionConfig.Init(restClientGetter, namespace, os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
 		fmt.Sprintf(format, v)
@@ -121,15 +116,15 @@ func (d *HelmDeployer) DeployPath(ctx context.Context,namespace string, path str
 	}
 
 	uid, err := shortid.Generate()
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
 	installer := action.NewInstall(actionConfig)
 	installer.Namespace = namespace
-	installer.ReleaseName = "lube-"+strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(uid),"_","."), ".","")
+	installer.ReleaseName = "lube-" + strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(uid), "_", "."), ".", "")
 	//installer.ClientOnly=true
-	installer.IncludeCRDs=true
+	installer.IncludeCRDs = true
 	//installer.Wait = true
 	installer.Replace = true
 	installer.WaitForJobs = false
@@ -140,22 +135,22 @@ func (d *HelmDeployer) DeployPath(ctx context.Context,namespace string, path str
 
 	chart, err := loader.LoadDir(path)
 
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 	err = chart.Validate()
 
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
-	release,err := installer.Run(chart, map[string]interface{}{})
+	release, err := installer.Run(chart, map[string]interface{}{})
 
-	if(false) {
+	if false {
 		spew.Dump(release)
 	}
 
-	if(err!=nil){
+	if err != nil {
 		return err
 	}
 
