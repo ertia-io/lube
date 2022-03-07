@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
+	"strings"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,8 +24,6 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"strings"
 )
 
 type YamlDeployer struct {
@@ -241,7 +242,6 @@ func GetDeployment(deployment string, into runtime.Object) (runtime.Object, *sch
 }
 
 func GetDeploymentParts(r io.Reader) ([]string, error) {
-
 	bytes, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err

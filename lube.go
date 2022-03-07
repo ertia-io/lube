@@ -2,18 +2,18 @@ package lube
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"context"
-	"github.com/ertia-io/lube/deployers/helm"
-	"github.com/ertia-io/lube/deployers/yaml"
-	"github.com/rs/zerolog/log"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/ertia-io/lube/deployers/helm"
+	"github.com/ertia-io/lube/deployers/yaml"
+	"github.com/ertia-io/lube/pkg/github"
+	"github.com/rs/zerolog/log"
 )
 
 type Deployer interface {
@@ -40,15 +40,15 @@ func (d *LubeDeployer) WithLoggingContext(ctx context.Context) context.Context {
 }
 
 //Deploy with URL to tar.gz archive (like github repo)
-func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, url string, token string) error {
-	ertiaDir, archiveFile, err := downloadArchive(url, token)
+func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, owner, repo, tag, token string) error {
+	ertiaDir, archiveFile, err := downloadArchive(owner, repo, tag, token)
 	if err != nil {
 		return err
 	}
 
-	log.Ctx(ctx).Info().Msgf("\nDeploying Archive: %s\n", url)
+	log.Ctx(ctx).Info().Msgf("\nDeploying Archive: %s, %s, %s\n", owner, repo, tag)
 
-	err = decompressArchive(ertiaDir, archiveFile)
+	err = untarDeployment(ertiaDir, archiveFile)
 	if err != nil {
 		return err
 	}
@@ -58,14 +58,13 @@ func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, url string, token s
 		return err
 	}
 
-	err = d.DeployDirectoryRecursive(ctx, ertiaDir)
+	//err = d.DeployDirectoryRecursive(ctx, ertiaDir)
 
 	return nil
 }
 
 //Deploy with path to directory, recursive
 func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context, dir string) error {
-
 	fi, err := ioutil.ReadDir(filepath.Join(dir))
 	if err != nil {
 		return err
@@ -89,9 +88,9 @@ func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context, dir string)
 	for _, collection := range fi {
 		var deployer Deployer
 
-		if strings.Contains(strings.ToLower(collection.Name()), "_helm") {
+		if strings.Contains(strings.ToLower(collection.Name()), "_helm_") {
 			deployer, err = helm.NewHelmDeployer(d.KubeConfig)
-		} else if strings.Contains(strings.ToLower(collection.Name()), "yaml") {
+		} else if strings.Contains(strings.ToLower(collection.Name()), "_yaml_") {
 			deployer, err = yaml.NewYamlDeployer(d.KubeConfig)
 		} else if collection.IsDir() {
 			log.Ctx(ctx).Info().Msgf("\n Checking %s for deployments \n", filepath.Join(dir, collection.Name()))
@@ -119,63 +118,43 @@ func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context, dir string)
 	return nil
 }
 
-func downloadArchive(url string, token string) (string, string, error) {
-
-	httpClient := http.DefaultClient
-	httpClient.Timeout = time.Second * 60
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func downloadArchive(owner, repo, tag, token string) (string, string, error) {
+	g := github.New(token)
+	release, err := g.GetReleaseAssetByTag(owner, repo, tag)
 	if err != nil {
 		return "", "", err
 	}
 
-	if token != "" {
-		req.Header.Add("Authorization", "token "+token)
-	}
-
-	resp, err := httpClient.Do(req)
-
+	tmpDir, err := ioutil.TempDir("", "ertia.deployments") //TODO: Add checksum? would work as cache...?
 	if err != nil {
 		return "", "", err
 	}
 
-	defer resp.Body.Close()
-
-	dir, err := ioutil.TempDir("", "ertia.deployments") //TODO: Add checksum? would work as cache...?
-
+	outFile, err := os.Create(filepath.Join(tmpDir, "deployments.tar"))
 	if err != nil {
 		return "", "", err
 	}
 
-	outFile, err := os.Create(filepath.Join(dir, "deployments.tgz"))
-	if err != nil {
+	if _, err := outFile.Write(release); err != nil {
 		return "", "", err
 	}
 
-	if _, err := io.Copy(outFile, resp.Body); err != nil {
-		return "", "", err
-	}
-	return dir, outFile.Name(), err
+	return tmpDir, outFile.Name(), nil
 }
 
-func decompressArchive(dir string, filePath string) error {
-	r, err := os.Open(filePath)
+func untarDeployment(dir string, filePath string) error {
+	f, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 
-	uncompressedStream, err := gzip.NewReader(r)
-	if err != nil {
-		return err
-	}
-
-	tarReader := tar.NewReader(uncompressedStream)
+	tarReader := tar.NewReader(f)
 
 	if err != nil {
 		return err
 	}
 
-	for true {
+	for {
 		header, err := tarReader.Next()
 
 		if err == io.EOF {
@@ -191,6 +170,10 @@ func decompressArchive(dir string, filePath string) error {
 			//Do nothing, only accepting yaml or helm Archives
 			continue
 		case tar.TypeReg:
+			if err := sanitizeExtractPath(dir, header.Name); err != nil {
+				return err
+			}
+
 			err = os.MkdirAll(filepath.Join(dir, filepath.Dir(header.Name)), 0777)
 			if err != nil {
 				return err
@@ -201,6 +184,7 @@ func decompressArchive(dir string, filePath string) error {
 				return err
 			}
 			defer outFile.Close()
+
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				return err
 			}
@@ -209,5 +193,14 @@ func decompressArchive(dir string, filePath string) error {
 		}
 	}
 
+	return nil
+}
+
+// zip-slip prevention
+func sanitizeExtractPath(dir, filePath string) error {
+	destpath := filepath.Join(dir, filePath)
+	if !strings.HasPrefix(destpath, filepath.Clean(dir)+string(os.PathSeparator)) {
+		return fmt.Errorf("%s: illegal file path", filePath)
+	}
 	return nil
 }
