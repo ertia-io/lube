@@ -1,14 +1,11 @@
 package main
 
 import (
-	"context"
-	"errors"
-	"github.com/ertia-io/lube"
-	"github.com/urfave/cli/v2"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
+
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -41,28 +38,13 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) error {
+				// TODO - fix deployment
+				//ld := lube.NewLubeDeployer(c.String("kubeconfig"))
 
-				ld := lube.NewLubeDeployer(c.String("kubeconfig"), c.String("namespace"))
-
-				deployment := c.Args().Get(0)
-
-				if len(deployment) < 1 {
-					return errors.New("No deployment specified")
-				}
-
-				u, err := url.Parse(deployment)
-				if err != nil || u.Scheme == "" || u.Host == "" {
-					err = ld.DeployDirectoryRecursive(context.Background(), deployment)
-					if err != nil {
-						return errors.New("Could not deploy directory: " + deployment)
-					}
-					return nil
-				}
-
-				err = ld.DeployArchiveUrl(context.Background(), u.String(), c.String("token"))
-				if err != nil {
-					return errors.New("Could not deploy url: " + deployment)
-				}
+				//err := ld.DeployArchive(context.Background(), u.String(), c.String("token"))
+				//if err != nil {
+				//	return fmt.Errorf("could not deploy: %s", deployment)
+				//}
 
 				return nil
 			},

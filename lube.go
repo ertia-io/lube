@@ -3,6 +3,7 @@ package lube
 import (
 	"archive/tar"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,105 +14,134 @@ import (
 	"github.com/ertia-io/lube/deployers/helm"
 	"github.com/ertia-io/lube/deployers/yaml"
 	"github.com/ertia-io/lube/pkg/github"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	deployInfoFile = "deploy_info.json"
+	deployTypeYaml = "yaml"
+	deployTypeHelm = "chart"
+	notApplicable  = "n/a"
+	emptyString    = ""
+)
+
 type Deployer interface {
-	Deploy(context.Context, string, io.Reader) error
 	DeployPath(context.Context, string, string) error
 	Name() string
 }
 
-type LubeDeployer struct {
-	KubeConfig string
-	Namespace  string
+type deploy struct {
+	ID        int    `json:"id"`
+	Type      string `json:"type"`
+	File      string `json:"file"`
+	Namespace string `json:"namespace"`
 }
 
-func NewLubeDeployer(kubeCfgPath string, namespace string) *LubeDeployer {
+type deployInfo struct {
+	Deploys []deploy `json:"deploys"`
+}
+
+type LubeDeployer struct {
+	KubeConfig string
+}
+
+func NewLubeDeployer(kubeCfgPath string) *LubeDeployer {
 	return &LubeDeployer{
 		KubeConfig: kubeCfgPath,
-		Namespace:  namespace,
 	}
 }
 
 func (d *LubeDeployer) WithLoggingContext(ctx context.Context) context.Context {
-	logger := log.With().Str("module", "lube").Logger()
+	logger := zerolog.New(os.Stdout).With().Str("module", "lube").Logger()
 	return logger.WithContext(ctx)
 }
 
-//Deploy with URL to tar.gz archive (like github repo)
-func (d *LubeDeployer) DeployArchiveUrl(ctx context.Context, owner, repo, tag, token string) error {
+//Deploy tar archive
+func (d *LubeDeployer) DeployArchive(ctx context.Context, owner, repo, tag, token string) error {
 	ertiaDir, archiveFile, err := downloadArchive(owner, repo, tag, token)
 	if err != nil {
 		return err
 	}
 
-	log.Ctx(ctx).Info().Msgf("\nDeploying Archive: %s, %s, %s\n", owner, repo, tag)
+	log.Ctx(ctx).Info().Msgf("deploying archive: %s, %s, %s", owner, repo, tag)
 
-	err = untarDeployment(ertiaDir, archiveFile)
-	if err != nil {
+	if err := untarDeployment(ertiaDir, archiveFile); err != nil {
 		return err
 	}
 
-	err = os.Remove(archiveFile)
-	if err != nil {
+	if err := os.Remove(archiveFile); err != nil {
 		return err
 	}
 
-	//err = d.DeployDirectoryRecursive(ctx, ertiaDir)
+	if err := d.deployRelease(ctx, ertiaDir); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-//Deploy with path to directory, recursive
-func (d *LubeDeployer) DeployDirectoryRecursive(ctx context.Context, dir string) error {
-	fi, err := ioutil.ReadDir(filepath.Join(dir))
+//Deploy
+func (ld *LubeDeployer) deployRelease(ctx context.Context, dir string) error {
+	diBuf, err := ioutil.ReadFile(filepath.Join(dir, deployInfoFile))
 	if err != nil {
 		return err
 	}
 
-	log.Ctx(ctx).Info().Msgf("\nFound %d deployments\n", len(fi))
+	var di deployInfo
 
-	if len(fi) > 0 {
-
-		//Create namepsace..
-		kubeDeployer, err := yaml.NewYamlDeployer(d.KubeConfig)
-		if err != nil {
-			return err
-		}
-		err = kubeDeployer.CreateNamespace(context.Background(), d.Namespace)
-		if err != nil {
-			err = nil //Already existed, ignore..
-		}
+	if err := json.Unmarshal(diBuf, &di); err != nil {
+		return err
 	}
 
-	for _, collection := range fi {
-		var deployer Deployer
+	log.Ctx(ctx).Info().Msgf("found %d deployments", len(di.Deploys))
 
-		if strings.Contains(strings.ToLower(collection.Name()), "_helm_") {
-			deployer, err = helm.NewHelmDeployer(d.KubeConfig)
-		} else if strings.Contains(strings.ToLower(collection.Name()), "_yaml_") {
-			deployer, err = yaml.NewYamlDeployer(d.KubeConfig)
-		} else if collection.IsDir() {
-			log.Ctx(ctx).Info().Msgf("\n Checking %s for deployments \n", filepath.Join(dir, collection.Name()))
-			err = d.DeployDirectoryRecursive(ctx, filepath.Join(dir, collection.Name()))
+	if len(di.Deploys) > 0 {
+		for k, d := range di.Deploys {
+			if k+1 != d.ID {
+				return fmt.Errorf("deploy: %s with id %d, is out of deploy order", d.File, d.ID)
+			}
+
+			if d.Namespace != notApplicable && d.Namespace != emptyString {
+				//Create namepsace..
+				kubeDeployer, err := yaml.NewYamlDeployer(ld.KubeConfig)
+				if err != nil {
+					return err
+				}
+				err = kubeDeployer.CreateNamespace(context.Background(), d.Namespace)
+				if err != nil {
+					err = nil //Already existed, ignore..
+				}
+			} else {
+				d.Namespace = emptyString
+			}
+
+			var deployer Deployer
+
+			if d.Type == deployTypeYaml {
+				deployer, err = yaml.NewYamlDeployer(ld.KubeConfig)
+				if err != nil {
+					return err
+				}
+			} else if d.Type == deployTypeHelm {
+				deployer, err = helm.NewHelmDeployer(ld.KubeConfig)
+				if err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("unknown deploy type: %s", d.Type)
+			}
+
+			log.Ctx(ctx).Info().Msgf("deploying %s with deployer: %s", d.File, deployer.Name())
+
+			err = deployer.DeployPath(
+				context.Background(), d.Namespace, filepath.Join(dir, d.File),
+			)
 			if err != nil {
+				log.Ctx(ctx).Err(err).
+					Msgf("could not deploy %s with deployer %s", d.File, deployer.Name())
 				return err
 			}
-			continue
-		} else {
-			continue
-		}
-
-		if err != nil {
-			return err
-		}
-
-		log.Ctx(ctx).Info().Msgf("\nDeploying %s with Deployer: %s\n", collection.Name(), deployer.Name())
-		err = deployer.DeployPath(context.Background(), d.Namespace, filepath.Join(dir, collection.Name()))
-		if err != nil {
-			log.Ctx(ctx).Err(err).Msgf("\nCould not deploy %s with Deployer %s\n", collection.Name(), deployer.Name())
-			return err
 		}
 	}
 
