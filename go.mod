@@ -3,6 +3,7 @@ module github.com/ertia-io/lube
 go 1.17
 
 require (
+	code.gitea.io/sdk/gitea v0.15.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/rs/zerolog v1.26.1
 	github.com/teris-io/shortid v0.0.0-20201117134242-e59966efd125
@@ -57,6 +58,7 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
+	github.com/hashicorp/go-version v1.2.1 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
