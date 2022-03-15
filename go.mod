@@ -4,9 +4,7 @@ go 1.17
 
 require (
 	code.gitea.io/sdk/gitea v0.15.1
-	github.com/davecgh/go-spew v1.1.1
 	github.com/rs/zerolog v1.26.1
-	github.com/teris-io/shortid v0.0.0-20201117134242-e59966efd125
 	github.com/urfave/cli/v2 v2.3.0
 	helm.sh/helm/v3 v3.8.0
 	k8s.io/api v0.23.3
@@ -31,6 +29,7 @@ require (
 	github.com/containerd/containerd v1.5.9 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/cli v20.10.11+incompatible // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v20.10.12+incompatible // indirect
