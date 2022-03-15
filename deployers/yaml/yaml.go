@@ -21,12 +21,12 @@ type YamlDeployer struct {
 func NewYamlDeployer(kubeCfgPath string) (*YamlDeployer, error) {
 	restConfig, err := clientcmd.BuildConfigFromFlags("", kubeCfgPath)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to load kubeconfig from %s: %v", kubeCfgPath, err)
+		return nil, fmt.Errorf("unable to load kubeconfig from %s: %v", kubeCfgPath, err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("unable to create clientset: %s", err)
 	}
 
 	return &YamlDeployer{
