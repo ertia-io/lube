@@ -12,9 +12,12 @@ import (
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/storage/driver"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+const helmOperationTimeout = 1800 * time.Second
 
 type HelmDeployer struct {
 	KubeConfig string
@@ -51,17 +54,6 @@ func (d *HelmDeployer) DeployPath(ctx context.Context, namespace string, path st
 		return err
 	}
 
-	// TODO: Update with install if firts run e.g.:
-	// helm upgrade --install --atomic ...
-	installer := action.NewInstall(actionConfig)
-	installer.Atomic = true
-	installer.CreateNamespace = true
-	installer.DependencyUpdate = true
-	installer.IncludeCRDs = true
-	installer.Namespace = namespace
-	installer.ReleaseName = releaseName(path)
-	installer.Timeout = time.Second * 1800
-
 	chart, err := loader.Load(path)
 	if err != nil {
 		return err
@@ -72,7 +64,35 @@ func (d *HelmDeployer) DeployPath(ctx context.Context, namespace string, path st
 		return err
 	}
 
-	_, err = installer.Run(chart, map[string]interface{}{})
+	rn := releaseName(path)
+
+	history := action.NewHistory(actionConfig)
+	history.Max = 1
+
+	if _, err := history.Run(rn); err == driver.ErrReleaseNotFound {
+		installer := action.NewInstall(actionConfig)
+		installer.Atomic = true
+		installer.CreateNamespace = true
+		installer.DependencyUpdate = true
+		installer.IncludeCRDs = true
+		installer.Namespace = namespace
+		installer.ReleaseName = rn
+		installer.Timeout = helmOperationTimeout
+
+		_, err = installer.Run(chart, map[string]interface{}{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	upgrade := action.NewUpgrade(actionConfig)
+	upgrade.Atomic = true
+	upgrade.Namespace = namespace
+	upgrade.Timeout = helmOperationTimeout
+
+	_, err = upgrade.Run(rn, chart, map[string]interface{}{})
 	if err != nil {
 		return err
 	}
