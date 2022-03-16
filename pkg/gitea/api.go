@@ -8,11 +8,49 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type GiteaFile struct {
+	Name string
+	SHA  string
+}
+
 func getErtiaIdentity() gitea.Identity {
 	return gitea.Identity{
 		Name:  "ertia",
 		Email: "support@ertia.io",
 	}
+}
+
+func (g *Gitea) ListFiles(owner, repo, filePath, branch string) ([]GiteaFile, error) {
+
+	crs, r, err := g.client.ListContents(owner, repo, branch, filePath)
+
+	if err != nil {
+
+		if err.Error() == "404 Not Found" {
+			return nil, nil
+		}
+
+		errStr := fmt.Sprintf("Failed to get ertia file %s to %s/repos/%s/%s/contents/%s", filePath, g.host, owner, repo, filePath)
+		log.Ctx(g.ctx).Error().Err(err).Msgf(errStr)
+		return nil, fmt.Errorf(errStr)
+	}
+
+	if r.StatusCode > 400 {
+		errStr := fmt.Sprintf("Failed to get ertia file %s file to repo %s, got response code: %d", filePath, g.host, r.StatusCode)
+		log.Ctx(g.ctx).Error().Err(err).Msgf(errStr)
+		return nil, fmt.Errorf(errStr)
+	}
+
+	files := []GiteaFile{}
+
+	for _, cr := range crs {
+		files = append(files, GiteaFile{
+			Name: cr.Name,
+			SHA:  cr.SHA,
+		})
+	}
+
+	return files, nil
 }
 
 func (g *Gitea) GetFile(owner, repo, filePath, branch string) ([]byte, string, error) {
