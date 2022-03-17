@@ -52,7 +52,7 @@ func NewLubeDeployer(kubeCfgPath string) *LubeDeployer {
 	}
 }
 
-func (d *LubeDeployer) WithLoggingContext(ctx context.Context) context.Context {
+func WithLoggingContext(ctx context.Context) context.Context {
 	logger := zerolog.New(os.Stdout).With().Str("module", "lube").Logger()
 	return logger.WithContext(ctx)
 }
