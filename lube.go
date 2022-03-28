@@ -43,11 +43,13 @@ type deployInfo struct {
 }
 
 type LubeDeployer struct {
+	Domain     string
 	KubeConfig string
 }
 
-func NewLubeDeployer(kubeCfgPath string) *LubeDeployer {
+func NewLubeDeployer(kubeCfgPath, domain string) *LubeDeployer {
 	return &LubeDeployer{
+		Domain:     domain,
 		KubeConfig: kubeCfgPath,
 	}
 }
@@ -124,7 +126,7 @@ func (ld *LubeDeployer) deployRelease(ctx context.Context, dir string) error {
 					return err
 				}
 			} else if d.Type == deployTypeHelm {
-				deployer, err = helm.NewHelmDeployer(ld.KubeConfig)
+				deployer, err = helm.NewHelmDeployer(ld.KubeConfig, ld.Domain)
 				if err != nil {
 					return err
 				}
