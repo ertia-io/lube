@@ -120,8 +120,9 @@ func (d *HelmDeployer) debug(format string, v ...interface{}) {
 	}
 }
 
-// releaseName returns chart name from path, without file extention, as release name:
+// releaseName returns chart name from path, without file extention and path, as release name:
 // /tmp/a/b/b/ertia-core.tgz -> ertia-core
+// /tmp/a/b/b/ertia-core -> ertia-core
 func releaseName(path string) string {
 	_, file := filepath.Split(path)
 	ext := filepath.Ext(file)
