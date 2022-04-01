@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	helmOperationTimeout = 1800 * time.Second
+	helmOperationTimeout = 3600 * time.Second
 	helmValuesFile       = "values.yaml"
 
 	placeholderDomain = `@DOMAIN@`
@@ -87,7 +87,7 @@ func (d *HelmDeployer) DeployPath(ctx context.Context, namespace string, path st
 		installer.Atomic = true
 		installer.CreateNamespace = true
 		installer.DependencyUpdate = true
-		installer.IncludeCRDs = true
+		installer.IncludeCRDs = false
 		installer.Namespace = namespace
 		installer.ReleaseName = rn
 		installer.Timeout = helmOperationTimeout
